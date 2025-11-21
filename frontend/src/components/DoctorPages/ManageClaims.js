@@ -6,14 +6,20 @@ import { message } from 'antd';
 
 function ManageClaims() {
     const [claims, setClaims] = useState([]);
+    const [approvedClaims, setApprovedClaims] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [filterStatus, setFilterStatus] = useState('all');
+    const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'approved'
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchClaims();
-    }, [filterStatus]);
+        if (activeTab === 'pending') {
+            fetchClaims();
+        } else {
+            fetchApprovedClaims();
+        }
+    }, [filterStatus, activeTab]);
 
     const fetchClaims = async () => {
         try {
@@ -28,7 +34,7 @@ function ManageClaims() {
             }
 
             // Fetch all claims
-            const response = await axios.get('http://localhost:5001/api/claims/pending/pending', {
+            const response = await axios.get('http://localhost:5001/api/claims/pending/pending?stage=doctor', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -81,6 +87,48 @@ function ManageClaims() {
         }
     };
 
+    const fetchApprovedClaims = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                message.error('Please login to view claims');
+                navigate('/login');
+                return;
+            }
+
+            // Fetch doctor-approved claims with insurer decisions
+            const response = await axios.get('http://localhost:5001/api/claims/pending/doctor-approved', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.data && response.data.approvedClaims) {
+                let filteredClaims = response.data.approvedClaims;
+                
+                // Filter by insurer status if not 'all'
+                if (filterStatus !== 'all') {
+                    filteredClaims = filteredClaims.filter(claim => 
+                        claim.insurerApprovalStatus.toLowerCase() === filterStatus.toLowerCase()
+                    );
+                }
+                
+                setApprovedClaims(filteredClaims);
+            } else {
+                setApprovedClaims([]);
+            }
+        } catch (error) {
+            console.error('Error fetching approved claims:', error);
+            setError(error.response?.data?.error || 'Failed to fetch approved claims');
+            message.error(error.response?.data?.error || 'Failed to fetch approved claims');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleViewDetails = (claimId) => {
         navigate(`/dashboard/doctor/view-claims?claimId=${claimId}`);
     };
@@ -116,10 +164,34 @@ function ManageClaims() {
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-3xl font-bold text-teal-600">Manage Claims</h2>
                 <button
-                    onClick={fetchClaims}
+                    onClick={() => activeTab === 'pending' ? fetchClaims() : fetchApprovedClaims()}
                     className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition"
                 >
                     Refresh
+                </button>
+            </div>
+
+            {/* Tab Section */}
+            <div className="mb-6 flex gap-2 border-b border-gray-300">
+                <button
+                    onClick={() => setActiveTab('pending')}
+                    className={`px-6 py-3 font-semibold transition ${
+                        activeTab === 'pending'
+                            ? 'text-teal-600 border-b-2 border-teal-600'
+                            : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                >
+                    Pending Claims
+                </button>
+                <button
+                    onClick={() => setActiveTab('approved')}
+                    className={`px-6 py-3 font-semibold transition ${
+                        activeTab === 'approved'
+                            ? 'text-teal-600 border-b-2 border-teal-600'
+                            : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                >
+                    Approved Claims (with Insurer Decision)
                 </button>
             </div>
 
@@ -133,38 +205,45 @@ function ManageClaims() {
                             : 'bg-white text-gray-700 hover:bg-gray-100'
                     }`}
                 >
-                    All Claims
+                    All
                 </button>
-                <button
-                    onClick={() => setFilterStatus('pending')}
-                    className={`px-4 py-2 rounded-lg ${
-                        filterStatus === 'pending' 
-                            ? 'bg-teal-600 text-white' 
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
-                    }`}
-                >
-                    Pending
-                </button>
-                <button
-                    onClick={() => setFilterStatus('approved')}
-                    className={`px-4 py-2 rounded-lg ${
-                        filterStatus === 'approved' 
-                            ? 'bg-teal-600 text-white' 
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
-                    }`}
-                >
-                    Approved
-                </button>
-                <button
-                    onClick={() => setFilterStatus('rejected')}
-                    className={`px-4 py-2 rounded-lg ${
-                        filterStatus === 'rejected' 
-                            ? 'bg-teal-600 text-white' 
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
-                    }`}
-                >
-                    Rejected
-                </button>
+                {activeTab === 'pending' ? (
+                    <>
+                        <button
+                            onClick={() => setFilterStatus('pending')}
+                            className={`px-4 py-2 rounded-lg ${
+                                filterStatus === 'pending' 
+                                    ? 'bg-teal-600 text-white' 
+                                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                        >
+                            Pending
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => setFilterStatus('approved')}
+                            className={`px-4 py-2 rounded-lg ${
+                                filterStatus === 'approved' 
+                                    ? 'bg-teal-600 text-white' 
+                                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                        >
+                            Approved by Insurer
+                        </button>
+                        <button
+                            onClick={() => setFilterStatus('rejected')}
+                            className={`px-4 py-2 rounded-lg ${
+                                filterStatus === 'rejected' 
+                                    ? 'bg-teal-600 text-white' 
+                                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                        >
+                            Rejected by Insurer
+                        </button>
+                    </>
+                )}
             </div>
 
             {error && (
@@ -173,81 +252,168 @@ function ManageClaims() {
                 </div>
             )}
 
-            {claims.length === 0 ? (
-                <div className="text-center py-12">
-                    <p className="text-gray-600 text-lg">No claims found</p>
-                </div>
-            ) : (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {claims.map((claim) => (
-                        <div
-                            key={claim.claimId || claim._id}
-                            className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-all duration-300"
-                        >
-                            <div className="mb-4">
-                                <p className="text-sm text-gray-500">Claim ID</p>
-                                <p className="text-lg font-semibold text-gray-800">
-                                    {claim.claimId || 'N/A'}
-                                </p>
-                            </div>
-                            
-                            <div className="mb-4">
-                                <p className="text-sm text-gray-500">Patient</p>
-                                <p className="text-lg font-semibold text-teal-600">
-                                    {claim.patientName || claim.claimant || 'N/A'}
-                                </p>
-                            </div>
-
-                            <div className="mb-4">
-                                <p className="text-sm text-gray-500">Doctor</p>
-                                <p className="text-gray-700">
-                                    {claim.doctorName || 'N/A'}
-                                </p>
-                            </div>
-
-                            <div className="mb-4">
-                                <p className="text-sm text-gray-500">Amount</p>
-                                <p className="text-lg font-bold text-gray-800">
-                                    {formatAmount(claim.amount)}
-                                </p>
-                            </div>
-
-                            <div className="mb-4">
-                                <p className="text-sm text-gray-500">Status</p>
-                                <span
-                                    className={`inline-block px-3 py-1 rounded-full text-white text-sm ${getStatusColor(claim.status)}`}
-                                >
-                                    {claim.status || 'N/A'}
-                                </span>
-                            </div>
-
-                            {claim.description && (
-                                <div className="mb-4">
-                                    <p className="text-sm text-gray-500">Description</p>
-                                    <p className="text-gray-700 text-sm line-clamp-2">
-                                        {claim.description}
-                                    </p>
-                                </div>
-                            )}
-
-                            {claim.submissionDate && (
-                                <div className="mb-4">
-                                    <p className="text-sm text-gray-500">Submission Date</p>
-                                    <p className="text-gray-700 text-sm">
-                                        {new Date(claim.submissionDate).toLocaleDateString()}
-                                    </p>
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => handleViewDetails(claim.claimId || claim._id)}
-                                className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-700 transition"
+            {activeTab === 'pending' ? (
+                // Pending Claims Tab
+                claims.length === 0 ? (
+                    <div className="text-center py-12">
+                        <p className="text-gray-600 text-lg">No pending claims found</p>
+                    </div>
+                ) : (
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {claims.map((claim) => (
+                            <div
+                                key={claim.claimId || claim._id}
+                                className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-all duration-300"
                             >
-                                View Details
-                            </button>
-                        </div>
-                    ))}
-                </div>
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Claim ID</p>
+                                    <p className="text-lg font-semibold text-gray-800">
+                                        {claim.claimId || 'N/A'}
+                                    </p>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Patient</p>
+                                    <p className="text-lg font-semibold text-teal-600">
+                                        {claim.patientName || claim.claimant || 'N/A'}
+                                    </p>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Doctor</p>
+                                    <p className="text-gray-700">
+                                        {claim.doctorName || 'N/A'}
+                                    </p>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Amount</p>
+                                    <p className="text-lg font-bold text-gray-800">
+                                        {formatAmount(claim.amount)}
+                                    </p>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Status</p>
+                                    <span
+                                        className={`inline-block px-3 py-1 rounded-full text-white text-sm ${getStatusColor(claim.status)}`}
+                                    >
+                                        {claim.status || 'N/A'}
+                                    </span>
+                                </div>
+
+                                {claim.description && (
+                                    <div className="mb-4">
+                                        <p className="text-sm text-gray-500">Description</p>
+                                        <p className="text-gray-700 text-sm line-clamp-2">
+                                            {claim.description}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {claim.submissionDate && (
+                                    <div className="mb-4">
+                                        <p className="text-sm text-gray-500">Submission Date</p>
+                                        <p className="text-gray-700 text-sm">
+                                            {new Date(claim.submissionDate).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => handleViewDetails(claim.claimId || claim._id)}
+                                    className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-700 transition"
+                                >
+                                    View Details
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )
+            ) : (
+                // Approved Claims Tab (with Insurer Decision)
+                approvedClaims.length === 0 ? (
+                    <div className="text-center py-12">
+                        <p className="text-gray-600 text-lg">No approved claims found</p>
+                    </div>
+                ) : (
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {approvedClaims.map((claim) => (
+                            <div
+                                key={claim.claimId || claim._id}
+                                className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-all duration-300 border-l-4 border-teal-600"
+                            >
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Claim ID</p>
+                                    <p className="text-lg font-semibold text-gray-800">
+                                        {claim.claimId || 'N/A'}
+                                    </p>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Patient</p>
+                                    <p className="text-lg font-semibold text-teal-600">
+                                        {claim.patientName || claim.claimant || 'N/A'}
+                                    </p>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Amount</p>
+                                    <p className="text-lg font-bold text-gray-800">
+                                        {formatAmount(claim.amount)}
+                                    </p>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Your Approval</p>
+                                    <span className="inline-block px-3 py-1 rounded-full text-white text-sm bg-green-500">
+                                        Approved
+                                    </span>
+                                </div>
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-500">Insurer Decision</p>
+                                    <span
+                                        className={`inline-block px-3 py-1 rounded-full text-white text-sm ${
+                                            claim.insurerApprovalStatus === 'approved' 
+                                                ? 'bg-green-500' 
+                                                : claim.insurerApprovalStatus === 'rejected'
+                                                ? 'bg-red-500'
+                                                : 'bg-yellow-500'
+                                        }`}
+                                    >
+                                        {claim.insurerApprovalStatus?.charAt(0).toUpperCase() + claim.insurerApprovalStatus?.slice(1) || 'N/A'}
+                                    </span>
+                                </div>
+
+                                {claim.rejectionReason && (
+                                    <div className="mb-4">
+                                        <p className="text-sm text-gray-500">Rejection Reason</p>
+                                        <p className="text-gray-700 text-sm">
+                                            {claim.rejectionReason}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {claim.insurerReviewedAt && (
+                                    <div className="mb-4">
+                                        <p className="text-sm text-gray-500">Insurer Review Date</p>
+                                        <p className="text-gray-700 text-sm">
+                                            {new Date(claim.insurerReviewedAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => handleViewDetails(claim.claimId || claim._id)}
+                                    className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-700 transition"
+                                >
+                                    View Details
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )
             )}
         </div>
     );

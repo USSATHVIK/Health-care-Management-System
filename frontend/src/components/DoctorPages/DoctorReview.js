@@ -22,7 +22,7 @@ const DoctorReview = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5001/api/claims/pending/pending', {
+      const response = await fetch('http://localhost:5001/api/claims/pending/pending?stage=doctor', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

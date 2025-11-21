@@ -35,7 +35,7 @@ function ViewClaims() {
             }
 
             // Fetch all claims
-            const response = await axios.get('http://localhost:5001/api/claims/pending/pending', {
+            const response = await axios.get('http://localhost:5001/api/claims/pending/pending?stage=doctor', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -62,15 +62,42 @@ function ViewClaims() {
             setLoading(true);
             const token = localStorage.getItem('token');
             
-            const response = await axios.get(`http://localhost:5001/api/claims/pending/claim/${claimId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            // Try to fetch the claim details
+            try {
+                const response = await axios.get(`http://localhost:5001/api/claims/pending/claim/${claimId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
 
-            if (response.data) {
-                setSelectedClaim(response.data);
+                if (response.data) {
+                    setSelectedClaim(response.data);
+                    return;
+                }
+            } catch (error) {
+                console.warn('Claim not found in pending claims, trying approved claims...');
             }
+
+            // If not found in pending, try fetching from all claims
+            try {
+                const allClaimsResponse = await axios.get(`http://localhost:5001/api/claims`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (allClaimsResponse.data && Array.isArray(allClaimsResponse.data)) {
+                    const claim = allClaimsResponse.data.find(c => c.claimId === claimId || c._id === claimId);
+                    if (claim) {
+                        setSelectedClaim(claim);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.warn('Error fetching from all claims:', error);
+            }
+
+            message.error('Claim not found');
         } catch (error) {
             console.error('Error fetching claim details:', error);
             message.error('Failed to fetch claim details');
@@ -174,6 +201,46 @@ function ViewClaims() {
                             <div className="md:col-span-2">
                                 <p className="text-sm text-gray-500">Description</p>
                                 <p className="text-gray-700">{selectedClaim.description}</p>
+                            </div>
+                        )}
+
+                        {selectedClaim.doctorApprovalStatus && (
+                            <div>
+                                <p className="text-sm text-gray-500">Doctor Approval Status</p>
+                                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                                    selectedClaim.doctorApprovalStatus === 'approved' ? 'bg-green-500 text-white' :
+                                    selectedClaim.doctorApprovalStatus === 'rejected' ? 'bg-red-500 text-white' :
+                                    'bg-yellow-500 text-white'
+                                }`}>
+                                    {selectedClaim.doctorApprovalStatus?.charAt(0).toUpperCase() + selectedClaim.doctorApprovalStatus?.slice(1)}
+                                </span>
+                            </div>
+                        )}
+
+                        {selectedClaim.insurerApprovalStatus && (
+                            <div>
+                                <p className="text-sm text-gray-500">Insurer Decision</p>
+                                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                                    selectedClaim.insurerApprovalStatus === 'approved' ? 'bg-green-500 text-white' :
+                                    selectedClaim.insurerApprovalStatus === 'rejected' ? 'bg-red-500 text-white' :
+                                    'bg-yellow-500 text-white'
+                                }`}>
+                                    {selectedClaim.insurerApprovalStatus?.charAt(0).toUpperCase() + selectedClaim.insurerApprovalStatus?.slice(1)}
+                                </span>
+                            </div>
+                        )}
+
+                        {selectedClaim.rejectionReason && (
+                            <div className="md:col-span-2">
+                                <p className="text-sm text-gray-500">Rejection Reason</p>
+                                <p className="text-gray-700">{selectedClaim.rejectionReason}</p>
+                            </div>
+                        )}
+
+                        {selectedClaim.doctorReview && (
+                            <div className="md:col-span-2">
+                                <p className="text-sm text-gray-500">Doctor Review</p>
+                                <p className="text-gray-700">{selectedClaim.doctorReview}</p>
                             </div>
                         )}
                         

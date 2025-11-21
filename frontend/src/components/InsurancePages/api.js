@@ -13,7 +13,7 @@ const getAuthHeaders = () => {
 
 export const fetchClaims = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/claims/pending/pending`, {
+    const response = await axios.get(`${API_BASE_URL}/claims/pending/pending?stage=insurer`, {
       headers: getAuthHeaders()
     });
     return response.data?.pendingClaims || [];
@@ -45,10 +45,9 @@ export const approveClaim = async (claimId) => {
 export const rejectClaim = async (claimId, reason) => {
   try {
     const response = await axios.post(
-      `${API_BASE_URL}/reviewclaims/review/${claimId}`,
+      `${API_BASE_URL}/claims/pending/reject/${claimId}`,
       {
-        status: 'reject',
-        doctorReview: reason
+        reason
       },
       {
         headers: getAuthHeaders()

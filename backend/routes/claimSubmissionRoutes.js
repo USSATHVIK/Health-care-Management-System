@@ -141,7 +141,7 @@ async function getWallet() {
 }
 
 // The deployed contract's new address
-const contractAddress = '0xa9b5aB756b33f6c56D0DACA5517DAFfedc2e7CE6'; 
+const contractAddress = '0xCfEB869F69431e42cdB54A4F4f105C19C080A601'; 
 const contractABI = [
   {
     "inputs": [],
@@ -1066,10 +1066,13 @@ router.post('/submit', async (req, res) => {
         patientId,
         diagnosis,
         treatment,
-        amount: claimAmountInWei.toString(),  // Save the amount as a string
+        amount: parseFloat(claimAmount),  // Save the original amount entered by user
         reportCID,
         walletAddress: signerAddress, // Use the backend wallet address, not the frontend one
         status: 'pending',
+        doctorApprovalStatus: 'pending',
+        insurerApprovalStatus: 'waiting',
+        currentStage: 'doctor',
         notes: autoSummary,
         transactionHash: transactionHash, // Set transaction hash from blockchain
         documents: [{

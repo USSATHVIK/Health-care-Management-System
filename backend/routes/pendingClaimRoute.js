@@ -638,10 +638,30 @@
   router.get('/pending', async (req, res) => {
     console.log("Inside pending claim");
     try {
-      // Fetch all claims with "under review" or "pending" status from the database
-      const pendingClaims = await Claim.find({
-        status: { $in: ['under review', 'pending'] }
-      });
+      const stage = (req.query.stage || 'all').toLowerCase();
+      let query = {};
+
+      if (stage === 'doctor') {
+        query = {
+          $and: [
+            { $or: [{ currentStage: { $exists: false } }, { currentStage: 'doctor' }] },
+            { $or: [{ doctorApprovalStatus: { $exists: false } }, { doctorApprovalStatus: 'pending' }] }
+          ]
+        };
+      } else if (stage === 'insurer') {
+        query = {
+          currentStage: 'insurer',
+          doctorApprovalStatus: 'approved',
+          insurerApprovalStatus: 'pending'
+        };
+      } else if (stage === 'completed') {
+        query = { currentStage: 'completed' };
+      } else {
+        // Backwards compatibility: return the traditional pending/under-review set
+        query = { status: { $in: ['under review', 'pending'] } };
+      }
+
+      const pendingClaims = await Claim.find(query);
 
       // Always return pendingClaims array, even if empty
       if (pendingClaims.length === 0) {
@@ -660,6 +680,11 @@
         status: dbClaim.status,  // Status from the database
         submissionDate: dbClaim.createdAt ? dbClaim.createdAt.toISOString() : 'N/A',  // Submission date
         transactionHash: dbClaim.transactionHash || 'N/A',  // Transaction hash if available
+        doctorApprovalStatus: dbClaim.doctorApprovalStatus,
+        insurerApprovalStatus: dbClaim.insurerApprovalStatus,
+        currentStage: dbClaim.currentStage,
+        doctorReviewedAt: dbClaim.doctorReviewedAt,
+        insurerReviewedAt: dbClaim.insurerReviewedAt,
       }));
 
       // Respond with the list of pending claims
@@ -697,6 +722,17 @@
   
       console.log("Claim fetched:", claim);
   
+      // Ensure the claim passed doctor review
+      if (claim.doctorApprovalStatus !== 'approved') {
+        console.warn("Claim has not been approved by a doctor. Claim ID:", claimId);
+        return res.status(400).json({ error: 'Claim must be approved by a doctor before insurer verification.' });
+      }
+
+      // Ensure the claim is currently awaiting insurer action
+      if (claim.currentStage !== 'insurer' || claim.insurerApprovalStatus !== 'pending') {
+        return res.status(400).json({ error: 'Claim is not awaiting insurer verification.' });
+      }
+
       // Check if the claim is already verified
       if (claim.isVerified) {
         console.warn("Claim is already verified. Claim ID:", claimId);
@@ -739,6 +775,9 @@
       // Update claim status in the database (regardless of blockchain status)
       claim.isVerified = true;
       claim.status = "approved"; // Change the claim status to 'approved'
+      claim.insurerApprovalStatus = 'approved';
+      claim.insurerReviewedAt = new Date();
+      claim.currentStage = 'completed';
       if (transactionHash) {
         claim.transactionHash = transactionHash; // Save transaction hash if available
       }
@@ -814,6 +853,69 @@
       console.error('Error uploading report to Pinata:', error);
       res.status(500).json({ message: 'Error uploading report to Pinata' });
     }
+  });
+
+  router.post('/reject/:claimId', async (req, res) => {
+    const { claimId } = req.params;
+    const { reason } = req.body;
+
+    try {
+      let claim = await Claim.findOne({ claimId });
+
+      if (!claim && mongoose.Types.ObjectId.isValid(claimId)) {
+        claim = await Claim.findById(claimId);
+      }
+
+      if (!claim) {
+        return res.status(404).json({ error: 'Claim not found in database.' });
+      }
+
+      if (claim.doctorApprovalStatus !== 'approved') {
+        return res.status(400).json({ error: 'Claim must be approved by a doctor before insurer review.' });
+      }
+
+      if (claim.currentStage !== 'insurer' || claim.insurerApprovalStatus !== 'pending') {
+        return res.status(400).json({ error: 'Claim is not awaiting insurer review.' });
+      }
+
+      let transactionHash = null;
+      let blockchainVerified = false;
+
+      try {
+        const tx = await contract.rejectClaim(claim.claimId || claimId, reason || 'Claim rejected by insurer', {
+          gasLimit: 500000,
+        });
+        await tx.wait();
+        transactionHash = tx.hash;
+        blockchainVerified = true;
+      } catch (blockchainError) {
+        console.warn("Blockchain rejection failed, falling back to database-only update:", blockchainError.message);
+      }
+
+      claim.status = 'rejected';
+      claim.rejectionReason = reason || 'Claim rejected by insurer';
+      claim.insurerApprovalStatus = 'rejected';
+      claim.insurerReviewedAt = new Date();
+      claim.currentStage = 'completed';
+      if (transactionHash) {
+        claim.transactionHash = transactionHash;
+      }
+
+      await claim.save();
+
+      return res.status(200).json({
+        message: 'Claim rejected successfully.',
+        claim,
+        blockchainVerified,
+        transactionHash: transactionHash || 'N/A',
+      });
+    } catch (error) {
+      console.error('Error rejecting claim:', error);
+      return res.status(500).json({
+        error: 'Failed to reject claim.',
+        details: error.message || 'Unknown error occurred'
+      });
+    }
   });
 
 
@@ -1041,9 +1143,9 @@ router.post('/review/:claimId', async (req, res) => {
           return res.status(404).json({ error: 'Claim not found.' });
       }
 
-      // Check if the claim has already been reviewed
-      if (claim.status !== 'pending') {
-          return res.status(400).json({ error: 'Claim has already been reviewed.' });
+      // Ensure the claim is awaiting doctor review
+      if (claim.currentStage !== 'doctor' || claim.doctorApprovalStatus !== 'pending') {
+          return res.status(400).json({ error: 'Claim is not awaiting doctor review.' });
       }
 
       // Fraud detection logic: call the fraud detection model API (optional)
@@ -1077,23 +1179,42 @@ router.post('/review/:claimId', async (req, res) => {
       if (fraudDetected) {
           // Automatically reject the claim if fraud is detected
           claim.status = 'rejected';
-          rejectionReason = 'Claim is fraudulent and rejected automatically based on fraud detection analysis.';
-          claim.doctorReview = rejectionReason;
+          claim.doctorReview = 'Claim is fraudulent and rejected automatically based on fraud detection analysis.';
+          claim.rejectionReason = claim.doctorReview;
+          rejectionReason = claim.doctorReview;
+          claim.doctorApprovalStatus = 'rejected';
+          claim.doctorReviewedAt = new Date();
+          claim.currentStage = 'completed';
+          claim.insurerApprovalStatus = 'skipped';
+          claim.insurerReviewedAt = undefined;
           await claim.save();
           return res.status(200).json({
               message: 'Claim rejected due to fraud detection.',
               claim,
-              rejectionReason
+              rejectionReason: claim.doctorReview
           });
       }
 
       // If the claim is not fraudulent, proceed with normal review
       if (status === 'approve') {
-          claim.status = 'approved';
+          claim.status = 'under review';
           claim.doctorReview = doctorReview || '';
+          claim.doctorApprovalStatus = 'approved';
+          claim.doctorReviewedAt = new Date();
+          claim.currentStage = 'insurer';
+          claim.insurerApprovalStatus = 'pending';
+          claim.insurerReviewedAt = undefined;
+          rejectionReason = '';
       } else if (status === 'reject') {
           claim.status = 'rejected';
           claim.doctorReview = doctorReview || 'Claim has been rejected by the doctor.';
+          claim.rejectionReason = claim.doctorReview;
+          claim.doctorApprovalStatus = 'rejected';
+          claim.doctorReviewedAt = new Date();
+          claim.currentStage = 'completed';
+          claim.insurerApprovalStatus = 'skipped';
+          claim.insurerReviewedAt = undefined;
+          rejectionReason = claim.doctorReview;
       } else {
           return res.status(400).json({ error: 'Invalid status. Use "approve" or "reject".' });
       }
@@ -1217,16 +1338,50 @@ router.post('/review/:claimId', async (req, res) => {
    
   
   
-  
+  // Route to get doctor-approved claims with insurer decisions
+  // This shows claims that the doctor has approved and displays the insurer's final decision
+  router.get('/doctor-approved', async (req, res) => {
+    console.log("Fetching doctor-approved claims with insurer decisions");
+    try {
+      const query = {
+        doctorApprovalStatus: 'approved',
+        currentStage: 'completed'
+      };
 
+      const approvedClaims = await Claim.find(query);
 
-  
+      if (approvedClaims.length === 0) {
+        return res.status(200).json({ approvedClaims: [] });
+      }
 
+      // Prepare the list of claims with relevant details
+      const responseClaims = approvedClaims.map(dbClaim => ({
+        claimId: dbClaim.claimId,
+        claimant: dbClaim.patientName,
+        amount: dbClaim.amount,
+        description: dbClaim.description || 'No description',
+        doctorName: dbClaim.doctorName,
+        patientName: dbClaim.patientName,
+        reportCID: dbClaim.reportCID,
+        status: dbClaim.status,
+        submissionDate: dbClaim.createdAt ? dbClaim.createdAt.toISOString() : 'N/A',
+        transactionHash: dbClaim.transactionHash || 'N/A',
+        doctorApprovalStatus: dbClaim.doctorApprovalStatus,
+        insurerApprovalStatus: dbClaim.insurerApprovalStatus,
+        currentStage: dbClaim.currentStage,
+        doctorReviewedAt: dbClaim.doctorReviewedAt ? dbClaim.doctorReviewedAt.toISOString() : 'N/A',
+        insurerReviewedAt: dbClaim.insurerReviewedAt ? dbClaim.insurerReviewedAt.toISOString() : 'N/A',
+        rejectionReason: dbClaim.rejectionReason || '',
+        doctorReview: dbClaim.doctorReview || '',
+      }));
+
+      return res.status(200).json({ approvedClaims: responseClaims });
+    } catch (error) {
+      console.error('Error fetching doctor-approved claims:', error);
+      return res.status(500).json({ error: 'Failed to fetch doctor-approved claims.' });
+    }
+  });
 
   export default router;
-
-
-
-
 
 

@@ -21,9 +21,10 @@ const Sidebar = () => (
         </div>
 
         <ul className="space-y-4">
-            <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
-                <Link to="/dashboard/patient/dashboard-overview" className="text-teal-600">Dashboard Overview</Link>
+           <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
+                <Link to="/dashboard/patient/dashboard-overview" className="text-teal-600"></Link>
             </li>
+            
 
             
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
@@ -33,7 +34,7 @@ const Sidebar = () => (
                 <Link to="/dashboard/patient/track-claims" className="text-teal-600">Track Claim Status</Link>
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
-                <Link to="/dashboard/patient/view-reports" className="text-teal-600">View Reports</Link>
+                <Link to="/dashboard/patient/view-reports" className="text-teal-600"></Link>
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/patient/settings" className="text-teal-600">Settings</Link>

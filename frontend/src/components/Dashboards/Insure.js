@@ -225,7 +225,7 @@ const InsuranceDashboard = () => {
         };
 
         const [pendingRes, approvedRes, rejectedRes] = await Promise.allSettled([
-          axios.get('http://localhost:5001/api/claims/pending/pending', { headers }),
+          axios.get('http://localhost:5001/api/claims/pending/pending?stage=insurer', { headers }),
           axios.get('http://localhost:5001/api/claims/approved', { headers }),
           axios.get('http://localhost:5001/api/claims/rejected', { headers })
         ]);

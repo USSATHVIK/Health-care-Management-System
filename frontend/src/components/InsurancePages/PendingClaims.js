@@ -7,12 +7,28 @@ const PendingClaims = () => {
   const [rejectingClaims, setRejectingClaims] = useState({}); // Track rejecting state per claim
   const [blockchainInfo, setBlockchainInfo] = useState({});
 
+  const formatStatus = (value) => {
+    if (!value) return 'N/A';
+    return value
+      .toString()
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const isReadyForInsurerAction = (claim) => {
+    return (
+      claim?.currentStage === 'insurer' &&
+      claim?.doctorApprovalStatus === 'approved' &&
+      claim?.insurerApprovalStatus === 'pending'
+    );
+  };
+
   useEffect(() => {
     // Fetch the pending claims data from your backend
     const fetchPendingClaims = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5001/api/claims/pending/pending', {
+        const response = await fetch('http://localhost:5001/api/claims/pending/pending?stage=insurer', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -122,12 +138,12 @@ const PendingClaims = () => {
       await rejectClaim(actualClaimId, rejectionReason);
       
       // Remove rejected claim from the list
-      setClaims((prevClaims) =>
-        prevClaims.filter((claim) => 
-          (claim.claimId !== actualClaimId) && (claim.id !== actualClaimId)
-        )
-      );
-      alert('Claim rejected successfully!');
+        setClaims((prevClaims) =>
+          prevClaims.filter((claim) => 
+            (claim.claimId !== actualClaimId) && (claim.id !== actualClaimId)
+          )
+        );
+        alert('Claim rejected successfully!');
     } catch (error) {
       console.error('Error rejecting claim:', error);
       const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || 'Error rejecting claim. Please try again.';
@@ -149,7 +165,10 @@ const PendingClaims = () => {
         {claims.map((claim) => (
           <div key={claim.claimId} className="border p-4 rounded shadow-sm">
             <h3 className="text-xl font-semibold">{`Claim ID: ${claim.claimId}`}</h3>
-            <p>Status: <span className="text-gray-700">{claim.status === 'verified' ? 'Verified' : 'Pending'}</span></p>
+            <p>Status: <span className="text-gray-700">{formatStatus(claim.status)}</span></p>
+            <p className="text-sm text-gray-500">Current Stage: {formatStatus(claim.currentStage)}</p>
+            <p className="text-sm text-gray-500">Doctor Review: {formatStatus(claim.doctorApprovalStatus)}</p>
+            <p className="text-sm text-gray-500">Insurer Review: {formatStatus(claim.insurerApprovalStatus)}</p>
             <p className="text-sm text-gray-500">Patient: {claim.patientName}</p>
             <p className="text-sm text-gray-500">Doctor: {claim.doctorName}</p>
             <p className="text-sm text-gray-500">Amount: ₹{claim.amount ? (typeof claim.amount === 'number' ? claim.amount.toLocaleString('en-IN') : claim.amount) : 0}</p>
@@ -173,14 +192,24 @@ const PendingClaims = () => {
               <button
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                 onClick={(e) => handleClaimValidation(claim.claimId, e)}
-                disabled={claim.status === 'verified' || claim.isVerified || loadingClaims[claim.claimId] || rejectingClaims[claim.claimId] || claim.status === 'rejected'}
+                disabled={
+                  !isReadyForInsurerAction(claim) ||
+                  claim.isVerified ||
+                  loadingClaims[claim.claimId] ||
+                  rejectingClaims[claim.claimId]
+                }
               >
-                {loadingClaims[claim.claimId] ? 'Validating...' : 'Validate Claim'}
+                {loadingClaims[claim.claimId] ? 'Validating...' : 'Verify & Approve'}
               </button>
               <button
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                 onClick={(e) => handleReject(claim.claimId, e)}
-                disabled={claim.status === 'verified' || claim.isVerified || claim.status === 'rejected' || loadingClaims[claim.claimId] || rejectingClaims[claim.claimId]}
+                disabled={
+                  !isReadyForInsurerAction(claim) ||
+                  claim.status === 'rejected' ||
+                  loadingClaims[claim.claimId] ||
+                  rejectingClaims[claim.claimId]
+                }
               >
                 {rejectingClaims[claim.claimId] ? 'Rejecting...' : 'Reject Claim'}
               </button>

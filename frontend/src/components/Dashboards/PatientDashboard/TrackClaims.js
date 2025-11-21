@@ -162,7 +162,7 @@ const TrackClaims = () => {
                     headers['Authorization'] = `Bearer ${token}`;
                 }
                 
-                const response = await fetch("http://localhost:5001/api/claims/pending/pending", {
+                const response = await fetch("http://localhost:5001/api/claims/pending/pending?stage=all", {
                     method: 'GET',
                     headers: headers
                 });

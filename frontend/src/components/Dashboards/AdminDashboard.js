@@ -18,7 +18,7 @@ const Sidebar = () => (
                 alt="Profile"
                 className="rounded-full w-10 h-10"
             />
-            <span className="text-lg font-semibold text-teal-600">Doctor Name</span>
+            <span className="text-lg font-semibold text-teal-800">Doctor </span>
         </div>
 
         <ul className="space-y-4">
@@ -26,19 +26,19 @@ const Sidebar = () => (
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor" className="text-teal-600">Dashboard Overview</Link>
             </li>
-            <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
+            {/*<li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/manage-policies" className="text-teal-600">Manage Policies</Link>
-            </li>
-            <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
+            </li>*/}
+            {/*<li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/manage-users" className="text-teal-600">Manage Users</Link>
-            </li>
+            </li>*/}
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/manage-claims" className="text-teal-600">Manage Claims</Link>
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/view-claims" className="text-teal-600">View Claims</Link>
             </li>
-            <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
+            {/*<li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/view-reports" className="text-teal-600">View Reports</Link>
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
@@ -46,14 +46,14 @@ const Sidebar = () => (
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/system-settings" className="text-teal-600">System Settings</Link>
-            </li>
+            </li>*/}
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/claim-submission" className="text-teal-600">Review</Link>
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/track-claim-status" className="text-teal-600">Track Claim Status</Link>
             </li>
-            <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
+            {/*<li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/smart-contract-interaction" className="text-teal-600">Smart Contract</Link>
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
@@ -64,7 +64,7 @@ const Sidebar = () => (
             </li>
             <li className="hover:shadow-lg hover:bg-teal-100 p-4 rounded-lg">
                 <Link to="/dashboard/doctor/patient-information" className="text-teal-600">Patient Information</Link>
-            </li>
+            </li>*/}
         </ul>
     </motion.div>
 );
@@ -122,7 +122,7 @@ const AdminDashboard = () => {
                 rejectedResult,
                 usersResult
             ] = await Promise.allSettled([
-                axios.get('http://localhost:5001/api/claims/pending/pending', { headers }),
+                axios.get('http://localhost:5001/api/claims/pending/pending?stage=all', { headers }),
                 axios.get('http://localhost:5001/api/claims/approved', { headers }),
                 axios.get('http://localhost:5001/api/claims/rejected', { headers }),
                 axios.get('http://localhost:5001/api/users', { headers })
@@ -267,7 +267,7 @@ const AdminDashboard = () => {
                     transition={{ duration: 1 }}
                 >
                     {/* Manage Users Card */}
-                    <motion.div
+                    {/*<motion.div
                         className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
                         initial={{ scale: 0.8 }}
                         animate={{ scale: 1 }}
@@ -279,7 +279,7 @@ const AdminDashboard = () => {
                         <Link to="/dashboard/doctor/manage-users" className="text-teal-600 hover:text-teal-700 transition font-medium">
                             Go to User Management →
                         </Link>
-                    </motion.div>
+                    </motion.div>/*}
 
                     {/* Manage Claims Card */}
                     <motion.div
@@ -341,7 +341,7 @@ const AdminDashboard = () => {
                         </Link>
                     </motion.div>
 
-                    {/* Activity Log Card */}
+                    {/* Activity Log Card 
                     <motion.div
                         className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
                         initial={{ scale: 0.8 }}
@@ -354,7 +354,7 @@ const AdminDashboard = () => {
                         <Link to="/dashboard/doctor/activity-log" className="text-teal-600 hover:text-teal-700 transition font-medium">
                             View Activity →
                         </Link>
-                    </motion.div>
+                    </motion.div>*/}
                 </motion.div>
             </div>
         </div>

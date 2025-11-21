@@ -38,6 +38,31 @@ const claimSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    doctorReview: {
+      type: String,
+      default: '',
+    },
+    doctorApprovalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    doctorReviewedAt: {
+      type: Date,
+    },
+    insurerApprovalStatus: {
+      type: String,
+      enum: ['waiting', 'pending', 'approved', 'rejected', 'skipped'],
+      default: 'waiting',
+    },
+    insurerReviewedAt: {
+      type: Date,
+    },
+    currentStage: {
+      type: String,
+      enum: ['doctor', 'insurer', 'completed'],
+      default: 'doctor',
+    },
     documents: [
       {
         fileUrl: {

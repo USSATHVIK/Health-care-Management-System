@@ -59,7 +59,7 @@ const PatientInformation = () => {
 
             // Fetch patient claims
             try {
-                const claimsResponse = await axios.get('http://localhost:5001/api/claims/pending/pending', {
+                const claimsResponse = await axios.get('http://localhost:5001/api/claims/pending/pending?stage=all', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
